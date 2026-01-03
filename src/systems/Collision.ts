@@ -15,7 +15,7 @@ export interface ConflictPair {
  */
 export function detectConflicts(aircraft: AircraftState[]): ConflictPair[] {
   const conflicts: ConflictPair[] = [];
-  const active = aircraft.filter(a => !a.landed && !a.departed);
+  const active = aircraft.filter(a => a.status !== 'landed' && a.status !== 'departed' && a.status !== 'holding');
 
   for (let i = 0; i < active.length; i++) {
     for (let j = i + 1; j < active.length; j++) {
@@ -51,7 +51,7 @@ export function isInConflict(aircraftId: string, conflicts: ConflictPair[]): boo
  * Check for actual collision (very close proximity)
  */
 export function detectCollisions(aircraft: AircraftState[]): boolean {
-  const active = aircraft.filter(a => !a.landed && !a.departed);
+  const active = aircraft.filter(a => a.status !== 'landed' && a.status !== 'departed' && a.status !== 'holding');
 
   for (let i = 0; i < active.length; i++) {
     for (let j = i + 1; j < active.length; j++) {

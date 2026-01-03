@@ -44,10 +44,10 @@ export class Game {
       this.handleCommand(e.detail);
     }) as EventListener);
 
-    // Spawn initial aircraft
+    // Spawn initial aircraft - 2 arrivals, 1 departure
     this.state.aircraft.push(this.spawner.forceSpawn(true));
     this.state.aircraft.push(this.spawner.forceSpawn(true));
-    this.state.aircraft.push(this.spawner.forceSpawn(true));
+    this.state.aircraft.push(this.spawner.forceSpawn(false)); // Departure (holding)
 
     this.updateUI();
   }
@@ -63,6 +63,7 @@ export class Game {
     if (selected) {
       InputHandler.applyCommand(selected, command);
       this.inputHandler.updateCommandPanel(selected);
+      this.updateFlightStrips();
     }
   }
 
@@ -95,12 +96,12 @@ export class Game {
       updateAircraft(ac, deltaTime);
     });
 
-    // Check for landings on any runway
+    // Check for landings
     this.state.aircraft.forEach(ac => {
-      if (ac.isArrival && !ac.landed) {
+      if (ac.isArrival && ac.status === 'approach') {
         const landingRunway = checkLanding(ac);
         if (landingRunway) {
-          ac.landed = true;
+          ac.status = 'landed';
           this.scoring.addLanding();
           this.updateUI();
         }
@@ -109,28 +110,36 @@ export class Game {
 
     // Check for departures leaving screen
     this.state.aircraft.forEach(ac => {
-      if (!ac.isArrival && !ac.departed && hasLeftRadar(ac)) {
-        ac.departed = true;
+      if (!ac.isArrival && ac.status === 'flying' && hasLeftRadar(ac)) {
+        ac.status = 'departed';
         this.scoring.addDeparture();
         this.updateUI();
       }
     });
 
-    // Remove aircraft that exited without proper handling (arrivals leaving)
+    // Remove aircraft that are done or left improperly
     this.state.aircraft = this.state.aircraft.filter(ac => {
-      if (ac.landed || ac.departed) return true;
-      if (ac.isArrival && hasLeftRadar(ac)) {
-        // Arrival left without landing - penalty
+      // Keep landed and departed aircraft briefly, then remove
+      if (ac.status === 'landed' || ac.status === 'departed') {
+        return false; // Remove immediately
+      }
+
+      // Arrival left without landing - penalty
+      if (ac.isArrival && ac.status !== 'approach' && hasLeftRadar(ac)) {
         this.scoring.addConflictPenalty();
         this.updateUI();
         return false;
       }
+
       return true;
     });
 
-    // Check for conflicts every 500ms
+    // Check for conflicts every 500ms (only for flying aircraft)
     if (currentTime - this.lastConflictCheck > 500) {
-      this.conflicts = detectConflicts(this.state.aircraft);
+      const flyingAircraft = this.state.aircraft.filter(a =>
+        a.status === 'flying' || a.status === 'approach' || a.status === 'takeoff'
+      );
+      this.conflicts = detectConflicts(flyingAircraft);
       if (this.conflicts.length > 0) {
         this.scoring.addConflictPenalty();
         this.updateUI();
@@ -139,7 +148,10 @@ export class Game {
     }
 
     // Check for collisions (game over)
-    if (detectCollisions(this.state.aircraft)) {
+    const flyingAircraft = this.state.aircraft.filter(a =>
+      a.status === 'flying' || a.status === 'approach' || a.status === 'takeoff'
+    );
+    if (detectCollisions(flyingAircraft)) {
       this.state.gameOver = true;
     }
 
@@ -183,7 +195,7 @@ export class Game {
 
     if (scoreEl) scoreEl.textContent = String(this.scoring.getScore());
     if (countEl) countEl.textContent = String(
-      this.state.aircraft.filter(a => !a.landed && !a.departed).length
+      this.state.aircraft.filter(a => a.status !== 'landed' && a.status !== 'departed').length
     );
     if (landedEl) landedEl.textContent = String(this.scoring.getLanded());
 
@@ -195,17 +207,53 @@ export class Game {
     if (!container) return;
 
     container.innerHTML = '';
-    const active = this.state.aircraft.filter(a => !a.landed && !a.departed);
+    const active = this.state.aircraft.filter(a => a.status !== 'landed' && a.status !== 'departed');
 
     active.forEach(ac => {
       const strip = document.createElement('div');
       const typeClass = ac.isArrival ? 'arrival' : 'departure';
-      strip.className = `flight-strip ${typeClass}` + (ac.id === this.state.selectedAircraftId ? ' selected' : '');
+      const holdingClass = ac.status === 'holding' ? ' holding' : '';
+      const selectedClass = ac.id === this.state.selectedAircraftId ? ' selected' : '';
+      strip.className = `flight-strip ${typeClass}${holdingClass}${selectedClass}`;
+
+      // Status indicator
+      let statusText = '';
+      let statusColor = '#888';
+      switch (ac.status) {
+        case 'holding':
+          statusText = 'READY';
+          statusColor = '#ffff00';
+          break;
+        case 'taxiing':
+          statusText = 'TAXI';
+          statusColor = '#ff9900';
+          break;
+        case 'takeoff':
+          statusText = 'T/O';
+          statusColor = '#ff9900';
+          break;
+        case 'approach':
+          statusText = `ILS ${ac.assignedRunway}`;
+          statusColor = '#00ff00';
+          break;
+        case 'flying':
+          if (ac.assignedWaypoint) {
+            statusText = `→${ac.assignedWaypoint}`;
+            statusColor = '#00ffff';
+          }
+          break;
+      }
+
+      const typeLabel = ac.isArrival ? 'ARR' : 'DEP';
+      const typeColor = ac.isArrival ? '#00ffff' : '#ff9900';
+
       strip.innerHTML = `
-        <strong>${ac.callsign}</strong> <span style="color: ${ac.isArrival ? '#00ffff' : '#ff9900'}">${ac.isArrival ? 'ARR' : 'DEP'}</span><br>
-        ALT: ${Math.round(ac.altitude)} → ${ac.targetAltitude}<br>
+        <strong>${ac.callsign}</strong> <span style="color: ${typeColor}">${typeLabel}</span>
+        ${statusText ? `<span style="color: ${statusColor}; margin-left: 5px;">${statusText}</span>` : ''}
+        <br>
+        ALT: ${Math.round(ac.altitude)} → ${ac.targetAltitude}
+        <br>
         HDG: ${Math.round(ac.heading)}° SPD: ${Math.round(ac.speed)}kt
-        ${ac.isArrival && ac.clearedApproach ? '<br><span style="color:#0f0">CLEARED</span>' : ''}
       `;
       strip.addEventListener('click', () => {
         this.selectAircraft(ac);

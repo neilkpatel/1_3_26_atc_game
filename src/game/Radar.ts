@@ -1,6 +1,6 @@
-import { AircraftState, Runway } from '../types';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, CENTER_X, CENTER_Y, RUNWAYS } from '../utils/constants';
-import { toRadians, normalizeHeading } from '../utils/math';
+import { AircraftState, Runway, Waypoint } from '../types';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, CENTER_X, CENTER_Y, RUNWAYS, WAYPOINTS } from '../utils/constants';
+import { toRadians } from '../utils/math';
 import { getDataTag } from '../entities/Aircraft';
 import { ConflictPair, isInConflict } from '../systems/Collision';
 
@@ -39,6 +39,9 @@ export class Radar {
     // Draw compass headings at edges
     this.drawCompass();
 
+    // Draw waypoints
+    WAYPOINTS.forEach(wp => this.drawWaypoint(wp));
+
     // Draw all runways
     RUNWAYS.forEach(runway => this.drawRunway(runway));
 
@@ -47,7 +50,7 @@ export class Radar {
 
     // Draw aircraft
     aircraft.forEach(ac => {
-      if (!ac.landed && !ac.departed) {
+      if (ac.status !== 'landed' && ac.status !== 'departed') {
         this.drawAircraft(ac, ac.id === selectedId, isInConflict(ac.id, conflicts));
       }
     });
@@ -100,6 +103,27 @@ export class Radar {
     // W at left
     ctx.textAlign = 'right';
     ctx.fillText('W', 20, CENTER_Y + 5);
+  }
+
+  private drawWaypoint(wp: Waypoint): void {
+    const ctx = this.ctx;
+    const { x, y } = wp.position;
+
+    // Draw triangle
+    ctx.strokeStyle = '#00aa00';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 8);
+    ctx.lineTo(x - 7, y + 5);
+    ctx.lineTo(x + 7, y + 5);
+    ctx.closePath();
+    ctx.stroke();
+
+    // Draw label
+    ctx.fillStyle = '#00aa00';
+    ctx.font = 'bold 10px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText(wp.label, x, y + 20);
   }
 
   private drawSweep(): void {
@@ -161,14 +185,7 @@ export class Radar {
 
     ctx.restore();
 
-    // Draw runway numbers at both ends
-    const primaryHeading = runway.heading;
-    const oppositeHeading = normalizeHeading(runway.heading + 180);
-
-    // Format runway numbers (divide by 10, pad to 2 digits)
-    const primaryNum = String(Math.round(primaryHeading / 10)).padStart(2, '0');
-    const oppositeNum = String(Math.round(oppositeHeading / 10) || 36).padStart(2, '0');
-
+    // Draw runway labels at both ends (using labelPrimary and labelSecondary)
     ctx.fillStyle = '#00ff00';
     ctx.font = 'bold 11px Courier New';
     ctx.textAlign = 'center';
@@ -180,38 +197,51 @@ export class Radar {
     const endX2 = runway.position.x - labelOffset * Math.cos(rad);
     const endY2 = runway.position.y - labelOffset * Math.sin(rad);
 
-    // Primary heading label (at the end you land on when using this heading)
-    ctx.fillText(primaryNum, endX2, endY2 + 4);
-    // Opposite heading label
-    ctx.fillText(oppositeNum, endX1, endY1 + 4);
+    // Primary label (at the threshold for that direction)
+    ctx.fillText(runway.labelPrimary, endX2, endY2 + 4);
+    // Secondary label (opposite end)
+    ctx.fillText(runway.labelSecondary, endX1, endY1 + 4);
   }
 
   private drawAircraft(ac: AircraftState, isSelected: boolean, inConflict: boolean): void {
     const ctx = this.ctx;
     const { x, y } = ac.position;
 
-    // Determine color based on type
+    // Determine color based on type and status
     let color = ac.isArrival ? '#00ffff' : '#ff9900'; // Cyan for arrivals, orange for departures
+
+    // Special color for holding aircraft
+    if (ac.status === 'holding') {
+      color = '#ffff00'; // Yellow for holding
+    }
+
     if (inConflict) {
       color = '#ff0000';
     } else if (isSelected) {
-      color = '#ffff00';
+      color = '#ffffff'; // White for selected
     }
 
-    // Draw tail line BEHIND the aircraft (opposite of heading)
-    const tailRad = toRadians(ac.heading - 90 + 180); // Opposite direction
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + 18 * Math.cos(tailRad), y + 18 * Math.sin(tailRad));
-    ctx.stroke();
+    // For holding aircraft, draw differently (no tail, just blip)
+    if (ac.status === 'holding') {
+      // Just draw a square for holding aircraft
+      ctx.fillStyle = color;
+      ctx.fillRect(x - 4, y - 4, 8, 8);
+    } else {
+      // Draw tail line BEHIND the aircraft (opposite of heading)
+      const tailRad = toRadians(ac.heading - 90 + 180); // Opposite direction
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 18 * Math.cos(tailRad), y + 18 * Math.sin(tailRad));
+      ctx.stroke();
 
-    // Aircraft blip (nose - the front)
-    ctx.beginPath();
-    ctx.fillStyle = color;
-    ctx.arc(x, y, 5, 0, Math.PI * 2);
-    ctx.fill();
+      // Aircraft blip (nose - the front)
+      ctx.beginPath();
+      ctx.fillStyle = color;
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // Data tag
     ctx.fillStyle = color;
@@ -225,7 +255,7 @@ export class Radar {
 
     // Selection ring
     if (isSelected) {
-      ctx.strokeStyle = '#ffff00';
+      ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(x, y, 12, 0, Math.PI * 2);
@@ -252,7 +282,7 @@ export class Radar {
   ): AircraftState | null {
     const clickRadius = 15;
     for (const ac of aircraft) {
-      if (ac.landed || ac.departed) continue;
+      if (ac.status === 'landed' || ac.status === 'departed') continue;
       const dx = ac.position.x - x;
       const dy = ac.position.y - y;
       if (Math.sqrt(dx * dx + dy * dy) < clickRadius) {

@@ -10,7 +10,7 @@ export class Spawner {
    * Check if it's time to spawn a new aircraft
    */
   update(currentTime: number, currentAircraft: AircraftState[]): AircraftState | null {
-    const activeCount = currentAircraft.filter(a => !a.landed && !a.departed).length;
+    const activeCount = currentAircraft.filter(a => a.status !== 'landed' && a.status !== 'departed').length;
 
     if (activeCount >= MAX_AIRCRAFT) {
       return null;
