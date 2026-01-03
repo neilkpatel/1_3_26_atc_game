@@ -3,9 +3,9 @@ import { Radar } from './Radar';
 import { InputHandler } from './InputHandler';
 import { Spawner } from '../systems/Spawner';
 import { Scoring } from '../systems/Scoring';
-import { updateAircraft, hasLeftRadar, isOnApproach, distanceToRunway } from '../systems/Physics';
+import { updateAircraft, hasLeftRadar, checkLanding } from '../systems/Physics';
 import { detectConflicts, detectCollisions, ConflictPair } from '../systems/Collision';
-import { RUNWAY, LANDING_DISTANCE } from '../utils/constants';
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../utils/constants';
 
 export class Game {
   private radar: Radar;
@@ -45,6 +45,7 @@ export class Game {
     }) as EventListener);
 
     // Spawn initial aircraft
+    this.state.aircraft.push(this.spawner.forceSpawn(true));
     this.state.aircraft.push(this.spawner.forceSpawn(true));
     this.state.aircraft.push(this.spawner.forceSpawn(true));
 
@@ -94,11 +95,11 @@ export class Game {
       updateAircraft(ac, deltaTime);
     });
 
-    // Check for landings
+    // Check for landings on any runway
     this.state.aircraft.forEach(ac => {
-      if (ac.isArrival && !ac.landed && isOnApproach(ac, RUNWAY.heading)) {
-        const dist = distanceToRunway(ac);
-        if (dist < LANDING_DISTANCE) {
+      if (ac.isArrival && !ac.landed) {
+        const landingRunway = checkLanding(ac);
+        if (landingRunway) {
           ac.landed = true;
           this.scoring.addLanding();
           this.updateUI();
@@ -106,7 +107,7 @@ export class Game {
       }
     });
 
-    // Check for departures leaving radar
+    // Check for departures leaving screen
     this.state.aircraft.forEach(ac => {
       if (!ac.isArrival && !ac.departed && hasLeftRadar(ac)) {
         ac.departed = true;
@@ -162,17 +163,17 @@ export class Game {
   private renderGameOver(): void {
     const ctx = (document.getElementById('radar-canvas') as HTMLCanvasElement).getContext('2d')!;
     ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.fillRect(0, 0, 600, 600);
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     ctx.fillStyle = '#ff0000';
     ctx.font = 'bold 48px Courier New';
     ctx.textAlign = 'center';
-    ctx.fillText('COLLISION', 300, 280);
+    ctx.fillText('COLLISION', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 30);
 
     ctx.fillStyle = '#00ff00';
     ctx.font = '24px Courier New';
-    ctx.fillText(`Final Score: ${this.scoring.getScore()}`, 300, 340);
-    ctx.fillText(`Landed: ${this.scoring.getLanded()}`, 300, 380);
+    ctx.fillText(`Final Score: ${this.scoring.getScore()}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 20);
+    ctx.fillText(`Landed: ${this.scoring.getLanded()}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 60);
   }
 
   private updateUI(): void {
@@ -198,11 +199,13 @@ export class Game {
 
     active.forEach(ac => {
       const strip = document.createElement('div');
-      strip.className = 'flight-strip' + (ac.id === this.state.selectedAircraftId ? ' selected' : '');
+      const typeClass = ac.isArrival ? 'arrival' : 'departure';
+      strip.className = `flight-strip ${typeClass}` + (ac.id === this.state.selectedAircraftId ? ' selected' : '');
       strip.innerHTML = `
-        <strong>${ac.callsign}</strong> ${ac.isArrival ? 'ARR' : 'DEP'}<br>
-        ALT: ${ac.altitude} → ${ac.targetAltitude}<br>
+        <strong>${ac.callsign}</strong> <span style="color: ${ac.isArrival ? '#00ffff' : '#ff9900'}">${ac.isArrival ? 'ARR' : 'DEP'}</span><br>
+        ALT: ${Math.round(ac.altitude)} → ${ac.targetAltitude}<br>
         HDG: ${Math.round(ac.heading)}° SPD: ${Math.round(ac.speed)}kt
+        ${ac.isArrival && ac.clearedApproach ? '<br><span style="color:#0f0">CLEARED</span>' : ''}
       `;
       strip.addEventListener('click', () => {
         this.selectAircraft(ac);

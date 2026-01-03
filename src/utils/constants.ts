@@ -1,7 +1,14 @@
-// Radar display settings
-export const RADAR_RADIUS = 290;        // pixels
-export const RADAR_CENTER = 300;        // center of 600x600 canvas
+import { Runway } from '../types';
+
+// Display settings - full screen
+export const CANVAS_WIDTH = 900;
+export const CANVAS_HEIGHT = 700;
+export const CENTER_X = CANVAS_WIDTH / 2;
+export const CENTER_Y = CANVAS_HEIGHT / 2;
 export const RADAR_RANGE_NM = 30;       // nautical miles
+
+// Pixels per nautical mile (based on smaller dimension)
+export const PIXELS_PER_NM = (Math.min(CANVAS_WIDTH, CANVAS_HEIGHT) - 100) / 2 / RADAR_RANGE_NM;
 
 // Aircraft performance
 export const TURN_RATE = 3;             // degrees per second (standard rate)
@@ -33,17 +40,34 @@ export const CONFLICT_PENALTY = 25;
 export const SPAWN_INTERVAL = 15000;    // milliseconds between spawns
 export const MAX_AIRCRAFT = 8;
 
-// Runway (centered, runway 27 - heading 270)
-export const RUNWAY = {
-  id: 'RWY27',
-  position: { x: RADAR_CENTER, y: RADAR_CENTER },
-  heading: 270,
-  length: 40,
-};
+// 4 Runways - realistic intersecting layout
+export const RUNWAYS: Runway[] = [
+  {
+    id: '09L/27R',
+    position: { x: CENTER_X, y: CENTER_Y - 40 },  // North parallel
+    heading: 90,  // Primary heading (09L), opposite is 270 (27R)
+    length: 120,
+  },
+  {
+    id: '09R/27L',
+    position: { x: CENTER_X, y: CENTER_Y + 40 },  // South parallel
+    heading: 90,  // Primary heading (09R), opposite is 270 (27L)
+    length: 120,
+  },
+  {
+    id: '04/22',
+    position: { x: CENTER_X - 30, y: CENTER_Y },  // Diagonal NE-SW
+    heading: 40,  // Primary heading (04), opposite is 220 (22)
+    length: 100,
+  },
+  {
+    id: '18/36',
+    position: { x: CENTER_X + 50, y: CENTER_Y },  // North-South
+    heading: 180, // Primary heading (18), opposite is 360/0 (36)
+    length: 100,
+  },
+];
 
 // Approach settings
 export const APPROACH_FIX_DISTANCE = 10;  // nm from runway to start approach
 export const LANDING_DISTANCE = 0.5;      // nm - considered landed
-
-// Pixels per nautical mile
-export const PIXELS_PER_NM = RADAR_RADIUS / RADAR_RANGE_NM;

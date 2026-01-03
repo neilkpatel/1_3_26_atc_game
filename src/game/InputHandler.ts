@@ -60,10 +60,23 @@ export class InputHandler {
   updateCommandPanel(aircraft: AircraftState | null): void {
     const panel = document.getElementById('command-panel');
     const callsignSpan = document.getElementById('selected-callsign');
+    const typeSpan = document.getElementById('selected-type');
+    const approachRow = document.getElementById('approach-row');
 
     if (aircraft && panel && callsignSpan) {
       panel.classList.add('active');
       callsignSpan.textContent = aircraft.callsign;
+
+      // Update type indicator
+      if (typeSpan) {
+        typeSpan.textContent = aircraft.isArrival ? 'ARR' : 'DEP';
+        typeSpan.className = 'aircraft-type ' + (aircraft.isArrival ? 'arr' : 'dep');
+      }
+
+      // Show/hide approach button based on aircraft type
+      if (approachRow) {
+        approachRow.style.display = aircraft.isArrival ? 'block' : 'none';
+      }
 
       // Update input values
       (document.getElementById('cmd-heading') as HTMLInputElement).value =

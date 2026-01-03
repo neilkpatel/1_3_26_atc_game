@@ -1,6 +1,6 @@
 import { AircraftState } from '../types';
 import { generateCallsign, randomEdgePosition, bearingTo, normalizeHeading } from '../utils/math';
-import { RADAR_RADIUS, RADAR_CENTER, MIN_SPEED, MAX_SPEED, MIN_ALTITUDE, MAX_ALTITUDE } from '../utils/constants';
+import { CENTER_X, CENTER_Y, MIN_SPEED, MAX_SPEED, MIN_ALTITUDE, MAX_ALTITUDE, RUNWAYS } from '../utils/constants';
 
 let nextId = 1;
 
@@ -10,8 +10,8 @@ export function createAircraft(isArrival: boolean): AircraftState {
 
   if (isArrival) {
     // Arrivals spawn at edge, heading toward center
-    const position = randomEdgePosition(RADAR_RADIUS);
-    const heading = bearingTo(position, { x: RADAR_CENTER, y: RADAR_CENTER });
+    const position = randomEdgePosition();
+    const heading = bearingTo(position, { x: CENTER_X, y: CENTER_Y });
     const altitude = Math.floor(Math.random() * 50) + 80; // 8000-13000 ft
     const speed = Math.floor(Math.random() * 40) + 200;   // 200-240 kts
 
@@ -31,12 +31,13 @@ export function createAircraft(isArrival: boolean): AircraftState {
       departed: false,
     };
   } else {
-    // Departures start at runway
-    const heading = 270; // Runway 27 heading
+    // Departures start at a random runway
+    const runway = RUNWAYS[Math.floor(Math.random() * RUNWAYS.length)];
+    const heading = runway.heading; // Use runway heading
     return {
       id,
       callsign,
-      position: { x: RADAR_CENTER, y: RADAR_CENTER },
+      position: { x: runway.position.x, y: runway.position.y },
       heading,
       targetHeading: heading,
       altitude: 10, // 1000 ft (just took off)
@@ -70,7 +71,7 @@ export function clearForApproach(aircraft: AircraftState): void {
 }
 
 export function getDataTag(aircraft: AircraftState): string {
-  const alt = String(aircraft.altitude).padStart(3, '0');
+  const alt = String(Math.round(aircraft.altitude)).padStart(3, '0');
   const spd = String(Math.round(aircraft.speed / 10));
   return `${aircraft.callsign}\n${alt} ${spd}`;
 }

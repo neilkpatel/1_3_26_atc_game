@@ -1,4 +1,4 @@
-import { AircraftState } from '../types';
+import { AircraftState, Runway } from '../types';
 import {
   TURN_RATE,
   CLIMB_RATE,
@@ -6,10 +6,12 @@ import {
   ACCEL_RATE,
   DECEL_RATE,
   PIXELS_PER_NM,
-  RADAR_RADIUS,
-  RADAR_CENTER,
+  CANVAS_WIDTH,
+  CANVAS_HEIGHT,
+  RUNWAYS,
+  LANDING_DISTANCE,
 } from '../utils/constants';
-import { headingDifference, normalizeHeading, movePosition, isWithinRadar } from '../utils/math';
+import { headingDifference, normalizeHeading, movePosition, distancePixels } from '../utils/math';
 
 /**
  * Update aircraft physics for one frame
@@ -68,37 +70,75 @@ export function updateAircraft(aircraft: AircraftState, deltaTime: number): void
 }
 
 /**
- * Check if aircraft has left the radar scope (for departures)
+ * Check if aircraft has left the screen
  */
 export function hasLeftRadar(aircraft: AircraftState): boolean {
-  return !isWithinRadar(aircraft.position, RADAR_RADIUS + 20);
+  const margin = 30;
+  return (
+    aircraft.position.x < -margin ||
+    aircraft.position.x > CANVAS_WIDTH + margin ||
+    aircraft.position.y < -margin ||
+    aircraft.position.y > CANVAS_HEIGHT + margin
+  );
 }
 
 /**
- * Check if aircraft is within landing parameters
+ * Check if aircraft is aligned with a specific runway (either direction)
  */
-export function isOnApproach(aircraft: AircraftState, runwayHeading: number): boolean {
-  if (!aircraft.isArrival || !aircraft.clearedApproach) return false;
+function isAlignedWithRunway(aircraft: AircraftState, runway: Runway): boolean {
+  const primaryHeading = runway.heading;
+  const oppositeHeading = normalizeHeading(runway.heading + 180);
 
-  // Check heading is aligned (within 10 degrees)
-  const headingDiff = Math.abs(headingDifference(aircraft.heading, runwayHeading));
-  if (headingDiff > 10) return false;
+  // Check alignment with either runway direction
+  const headingDiff1 = Math.abs(headingDifference(aircraft.heading, primaryHeading));
+  const headingDiff2 = Math.abs(headingDifference(aircraft.heading, oppositeHeading));
+
+  return headingDiff1 <= 15 || headingDiff2 <= 15;
+}
+
+/**
+ * Check if aircraft can land on any runway
+ * Returns the runway if landing is possible, null otherwise
+ */
+export function checkLanding(aircraft: AircraftState): Runway | null {
+  if (!aircraft.isArrival || !aircraft.clearedApproach) return null;
 
   // Check altitude is low enough (below 3000 ft)
-  if (aircraft.altitude > 30) return false;
+  if (aircraft.altitude > 30) return null;
 
-  // Check speed is appropriate (below 160 kts)
-  if (aircraft.speed > 160) return false;
+  // Check speed is appropriate (below 170 kts)
+  if (aircraft.speed > 170) return null;
 
-  return true;
+  // Check each runway
+  for (const runway of RUNWAYS) {
+    // Check distance to runway
+    const dist = distancePixels(aircraft.position, runway.position) / PIXELS_PER_NM;
+    if (dist > LANDING_DISTANCE) continue;
+
+    // Check alignment
+    if (!isAlignedWithRunway(aircraft, runway)) continue;
+
+    // Aircraft can land on this runway
+    return runway;
+  }
+
+  return null;
 }
 
 /**
- * Calculate distance to runway center in NM
+ * Get the closest runway to an aircraft
  */
-export function distanceToRunway(aircraft: AircraftState): number {
-  const dx = aircraft.position.x - RADAR_CENTER;
-  const dy = aircraft.position.y - RADAR_CENTER;
-  const distPixels = Math.sqrt(dx * dx + dy * dy);
-  return distPixels / PIXELS_PER_NM;
+export function getClosestRunway(aircraft: AircraftState): Runway {
+  let closest = RUNWAYS[0];
+  let minDist = Infinity;
+
+  for (const runway of RUNWAYS) {
+    const dist = distancePixels(aircraft.position, runway.position);
+    if (dist < minDist) {
+      minDist = dist;
+      closest = runway;
+    }
+  }
+
+  return closest;
 }

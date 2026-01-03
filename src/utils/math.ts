@@ -1,5 +1,5 @@
 import { Position } from '../types';
-import { RADAR_CENTER, PIXELS_PER_NM } from './constants';
+import { PIXELS_PER_NM, CANVAS_WIDTH, CANVAS_HEIGHT } from './constants';
 
 /**
  * Convert degrees to radians
@@ -66,15 +66,6 @@ export function movePosition(pos: Position, heading: number, distancePixels: num
 }
 
 /**
- * Check if position is within radar range
- */
-export function isWithinRadar(pos: Position, radiusPixels: number): boolean {
-  const dx = pos.x - RADAR_CENTER;
-  const dy = pos.y - RADAR_CENTER;
-  return Math.sqrt(dx * dx + dy * dy) <= radiusPixels;
-}
-
-/**
  * Calculate bearing from one position to another
  */
 export function bearingTo(from: Position, to: Position): number {
@@ -85,14 +76,23 @@ export function bearingTo(from: Position, to: Position): number {
 }
 
 /**
- * Generate a random position on the edge of the radar
+ * Generate a random position on the edge of the screen
  */
-export function randomEdgePosition(radiusPixels: number): Position {
-  const angle = Math.random() * 2 * Math.PI;
-  return {
-    x: RADAR_CENTER + radiusPixels * Math.cos(angle),
-    y: RADAR_CENTER + radiusPixels * Math.sin(angle),
-  };
+export function randomEdgePosition(): Position {
+  const side = Math.floor(Math.random() * 4);
+  const margin = 10;
+
+  switch (side) {
+    case 0: // Top
+      return { x: Math.random() * CANVAS_WIDTH, y: margin };
+    case 1: // Right
+      return { x: CANVAS_WIDTH - margin, y: Math.random() * CANVAS_HEIGHT };
+    case 2: // Bottom
+      return { x: Math.random() * CANVAS_WIDTH, y: CANVAS_HEIGHT - margin };
+    case 3: // Left
+    default:
+      return { x: margin, y: Math.random() * CANVAS_HEIGHT };
+  }
 }
 
 /**
