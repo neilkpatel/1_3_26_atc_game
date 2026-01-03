@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ATC Radar</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: #0a0a0a;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        font-family: 'Courier New', monospace;
+        color: #00ff00;
+      }
+      #game-container {
+        display: flex;
+        gap: 20px;
+      }
+      #radar-canvas {
+        border: 2px solid #00ff00;
+        border-radius: 50%;
+      }
+      #side-panel {
+        width: 250px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      #status-bar {
+        background: #111;
+        padding: 10px;
+        border: 1px solid #00ff00;
+      }
+      #flight-strips {
+        background: #111;
+        padding: 10px;
+        border: 1px solid #00ff00;
+        flex: 1;
+        overflow-y: auto;
+        max-height: 400px;
+      }
+      #command-panel {
+        background: #111;
+        padding: 10px;
+        border: 1px solid #00ff00;
+        display: none;
+      }
+      #command-panel.active {
+        display: block;
+      }
+      .flight-strip {
+        background: #1a1a1a;
+        padding: 8px;
+        margin-bottom: 5px;
+        border-left: 3px solid #00ff00;
+        cursor: pointer;
+      }
+      .flight-strip:hover {
+        background: #222;
+      }
+      .flight-strip.selected {
+        border-left-color: #ffff00;
+        background: #222;
+      }
+      .btn {
+        background: #1a1a1a;
+        color: #00ff00;
+        border: 1px solid #00ff00;
+        padding: 5px 10px;
+        cursor: pointer;
+        font-family: inherit;
+        margin: 2px;
+      }
+      .btn:hover {
+        background: #00ff00;
+        color: #0a0a0a;
+      }
+      input[type="number"] {
+        background: #1a1a1a;
+        color: #00ff00;
+        border: 1px solid #00ff00;
+        padding: 5px;
+        width: 60px;
+        font-family: inherit;
+      }
+      h3 {
+        margin-bottom: 10px;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-container">
+      <canvas id="radar-canvas" width="600" height="600"></canvas>
+      <div id="side-panel">
+        <div id="status-bar">
+          <div>Score: <span id="score">0</span></div>
+          <div>Aircraft: <span id="aircraft-count">0</span></div>
+          <div>Landed: <span id="landed-count">0</span></div>
+        </div>
+        <div id="flight-strips">
+          <h3>FLIGHT STRIPS</h3>
+          <div id="strips-container"></div>
+        </div>
+        <div id="command-panel">
+          <h3>COMMANDS - <span id="selected-callsign"></span></h3>
+          <div>
+            <label>Heading:</label>
+            <input type="number" id="cmd-heading" min="0" max="359" step="5">
+            <button class="btn" id="btn-heading">SET</button>
+          </div>
+          <div style="margin-top: 8px;">
+            <label>Altitude (x100ft):</label>
+            <input type="number" id="cmd-altitude" min="10" max="150" step="5">
+            <button class="btn" id="btn-altitude">SET</button>
+          </div>
+          <div style="margin-top: 8px;">
+            <label>Speed (kts):</label>
+            <input type="number" id="cmd-speed" min="120" max="280" step="10">
+            <button class="btn" id="btn-speed">SET</button>
+          </div>
+          <div style="margin-top: 10px;">
+            <button class="btn" id="btn-approach">CLEAR APPROACH</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
