@@ -45,9 +45,10 @@ export class InputHandler {
   private setupCanvasListeners(): void {
     this.canvas.addEventListener('click', (e) => {
       const rect = this.canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      // This will be called from Game with the aircraft list
+      const scaleX = this.canvas.width / rect.width;
+      const scaleY = this.canvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
       (window as unknown as { handleRadarClick: (x: number, y: number) => void }).handleRadarClick(x, y);
     });
   }

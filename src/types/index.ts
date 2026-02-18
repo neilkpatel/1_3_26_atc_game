@@ -58,3 +58,10 @@ export interface Command {
   runwayId?: string;
   waypointId?: string;
 }
+
+export interface UFOState {
+  id: string;
+  position: Position;
+  velocity: Position; // pixels per second (dx, dy)
+  spawnTime: number;
+}

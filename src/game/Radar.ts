@@ -1,4 +1,4 @@
-import { AircraftState, Runway, Waypoint } from '../types';
+import { AircraftState, Runway, Waypoint, UFOState } from '../types';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, CENTER_X, CENTER_Y, RUNWAYS, WAYPOINTS } from '../utils/constants';
 import { toRadians } from '../utils/math';
 import { getDataTag } from '../entities/Aircraft';
@@ -44,6 +44,9 @@ export class Radar {
 
     // Draw all runways
     RUNWAYS.forEach(runway => this.drawRunway(runway));
+
+    // Draw airport name
+    this.drawAirportName();
 
     // Draw sweep line from center
     this.drawSweep();
@@ -203,45 +206,84 @@ export class Radar {
     ctx.fillText(runway.labelSecondary, endX1, endY1 + 4);
   }
 
+  private drawAirportName(): void {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#005500';
+    ctx.font = 'bold 12px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('METAVERSE INTL', CENTER_X, CENTER_Y - 65);
+    ctx.font = '9px Courier New';
+    ctx.fillText('KMVR', CENTER_X, CENTER_Y - 53);
+  }
+
   private drawAircraft(ac: AircraftState, isSelected: boolean, inConflict: boolean): void {
     const ctx = this.ctx;
     const { x, y } = ac.position;
 
     // Determine color based on type and status
-    let color = ac.isArrival ? '#00ffff' : '#ff9900'; // Cyan for arrivals, orange for departures
-
-    // Special color for holding aircraft
-    if (ac.status === 'holding') {
-      color = '#ffff00'; // Yellow for holding
-    }
-
+    let color = ac.isArrival ? '#00ffff' : '#ff9900';
+    if (ac.status === 'holding') color = '#ffff00';
     if (inConflict) {
       color = '#ff0000';
     } else if (isSelected) {
-      color = '#ffffff'; // White for selected
+      color = '#ffffff';
     }
 
-    // For holding aircraft, draw differently (no tail, just blip)
-    if (ac.status === 'holding') {
-      // Just draw a square for holding aircraft
-      ctx.fillStyle = color;
-      ctx.fillRect(x - 4, y - 4, 8, 8);
-    } else {
-      // Draw tail line BEHIND the aircraft (opposite of heading)
-      const tailRad = toRadians(ac.heading - 90 + 180); // Opposite direction
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + 18 * Math.cos(tailRad), y + 18 * Math.sin(tailRad));
-      ctx.stroke();
+    ctx.save();
+    ctx.translate(x, y);
 
-      // Aircraft blip (nose - the front)
-      ctx.beginPath();
+    if (ac.status === 'holding') {
+      // Square for holding aircraft
       ctx.fillStyle = color;
-      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fillRect(-4, -4, 8, 8);
+    } else {
+      // Rotate to heading direction
+      ctx.rotate(toRadians(ac.heading));
+
+      // Delta Airlines logo — 4 sections with chevron gap
+      const brightRed = inConflict ? '#ff3333' : (isSelected ? '#ffffff' : '#E01A2B');
+      const darkRed = inConflict ? '#cc0000' : (isSelected ? '#cccccc' : '#9E1B34');
+
+      // Top-left (bright red)
+      ctx.fillStyle = brightRed;
+      ctx.beginPath();
+      ctx.moveTo(0, -16);
+      ctx.lineTo(-10, 2);
+      ctx.lineTo(0, 8);
+      ctx.closePath();
+      ctx.fill();
+
+      // Top-right (dark red)
+      ctx.fillStyle = darkRed;
+      ctx.beginPath();
+      ctx.moveTo(0, -16);
+      ctx.lineTo(0, 8);
+      ctx.lineTo(10, 2);
+      ctx.closePath();
+      ctx.fill();
+
+      // Bottom-left (bright red)
+      ctx.fillStyle = brightRed;
+      ctx.beginPath();
+      ctx.moveTo(-11, 5);
+      ctx.lineTo(-16, 14);
+      ctx.lineTo(0, 14);
+      ctx.lineTo(0, 11);
+      ctx.closePath();
+      ctx.fill();
+
+      // Bottom-right (dark red)
+      ctx.fillStyle = darkRed;
+      ctx.beginPath();
+      ctx.moveTo(11, 5);
+      ctx.lineTo(0, 11);
+      ctx.lineTo(0, 14);
+      ctx.lineTo(16, 14);
+      ctx.closePath();
       ctx.fill();
     }
+
+    ctx.restore();
 
     // Data tag
     ctx.fillStyle = color;
@@ -250,7 +292,7 @@ export class Radar {
     const tag = getDataTag(ac);
     const lines = tag.split('\n');
     lines.forEach((line, i) => {
-      ctx.fillText(line, x + 10, y - 5 + i * 12);
+      ctx.fillText(line, x + 14, y - 5 + i * 12);
     });
 
     // Selection ring
@@ -258,7 +300,7 @@ export class Radar {
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(x, y, 12, 0, Math.PI * 2);
+      ctx.arc(x, y, 22, 0, Math.PI * 2);
       ctx.stroke();
     }
 
@@ -267,9 +309,79 @@ export class Radar {
       ctx.strokeStyle = '#ff0000';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(x, y, 15, 0, Math.PI * 2);
+      ctx.arc(x, y, 25, 0, Math.PI * 2);
       ctx.stroke();
     }
+  }
+
+  renderUFOs(ufos: UFOState[]): void {
+    ufos.forEach(ufo => this.drawUFO(ufo));
+  }
+
+  private drawUFO(ufo: UFOState): void {
+    const ctx = this.ctx;
+    const { x, y } = ufo.position;
+    const time = Date.now();
+
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Glow effect
+    const glowAlpha = 0.15 + 0.1 * Math.sin(time / 200);
+    ctx.fillStyle = `rgba(180, 0, 255, ${glowAlpha})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, 22, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Saucer body (ellipse)
+    ctx.fillStyle = '#7a7a8a';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 14, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#aaaacc';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Dome on top
+    ctx.fillStyle = '#aaddcc';
+    ctx.beginPath();
+    ctx.ellipse(0, -3, 6, 5, 0, Math.PI, 0);
+    ctx.fill();
+    ctx.strokeStyle = '#ccffee';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    // Dome shine
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.beginPath();
+    ctx.ellipse(-2, -5, 2, 1.5, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Flashing lights around the rim
+    const colors = ['#ff0055', '#00ff88', '#5555ff', '#ffff00', '#ff00ff', '#00ffff'];
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      const lx = Math.cos(angle) * 12;
+      const ly = Math.sin(angle) * 3.5;
+      const colorIndex = (i + Math.floor(time / 120)) % colors.length;
+      const blink = Math.sin(time / 80 + i * 1.5) > 0;
+      if (blink) {
+        ctx.fillStyle = colors[colorIndex];
+        ctx.beginPath();
+        ctx.arc(lx, ly, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    ctx.restore();
+
+    // Label with question marks
+    ctx.fillStyle = '#cc00ff';
+    ctx.font = 'bold 9px Courier New';
+    ctx.textAlign = 'center';
+    const labelFlicker = Math.floor(time / 300) % 3;
+    const labels = ['???', 'UFO', '👽'];
+    ctx.fillText(labels[labelFlicker], x, y - 14);
   }
 
   /**
@@ -280,7 +392,7 @@ export class Radar {
     y: number,
     aircraft: AircraftState[]
   ): AircraftState | null {
-    const clickRadius = 15;
+    const clickRadius = 22;
     for (const ac of aircraft) {
       if (ac.status === 'landed' || ac.status === 'departed') continue;
       const dx = ac.position.x - x;

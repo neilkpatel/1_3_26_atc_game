@@ -1,4 +1,4 @@
-import { AircraftState, GameState, Command } from '../types';
+import { AircraftState, GameState, Command, UFOState } from '../types';
 import { Radar } from './Radar';
 import { InputHandler } from './InputHandler';
 import { Spawner } from '../systems/Spawner';
@@ -25,6 +25,9 @@ export class Game {
   private lastTime: number = 0;
   private conflicts: ConflictPair[] = [];
   private lastConflictCheck: number = 0;
+  private ufos: UFOState[] = [];
+  private lastUfoCheck: number = 0;
+  private ufoCounter: number = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.radar = new Radar(canvas);
@@ -166,10 +169,70 @@ export class Game {
     if (this.scoring.getLanded() > 0 && this.scoring.getLanded() % 5 === 0) {
       this.spawner.increaseDifficulty();
     }
+
+    // UFO spawning — first at 5s, then every 15s
+    const ufoInterval = this.ufoCounter === 0 ? 5000 : 15000;
+    if (currentTime - this.lastUfoCheck > ufoInterval) {
+      this.lastUfoCheck = currentTime;
+      this.ufos.push(this.spawnUFO());
+    }
+
+    // Update UFO positions
+    this.ufos.forEach(ufo => {
+      ufo.position.x += ufo.velocity.x * deltaTime;
+      ufo.position.y += ufo.velocity.y * deltaTime;
+    });
+
+    // Remove UFOs that left the screen
+    this.ufos = this.ufos.filter(ufo =>
+      ufo.position.x > -30 && ufo.position.x < CANVAS_WIDTH + 30 &&
+      ufo.position.y > -30 && ufo.position.y < CANVAS_HEIGHT + 30
+    );
+  }
+
+  private spawnUFO(): UFOState {
+    const edge = Math.floor(Math.random() * 4);
+    let x: number, y: number, dx: number, dy: number;
+    const speed = 20 + Math.random() * 30; // slow drift
+
+    switch (edge) {
+      case 0: // top
+        x = Math.random() * CANVAS_WIDTH;
+        y = -20;
+        dx = (Math.random() - 0.5) * speed;
+        dy = speed * 0.7;
+        break;
+      case 1: // right
+        x = CANVAS_WIDTH + 20;
+        y = Math.random() * CANVAS_HEIGHT;
+        dx = -speed * 0.7;
+        dy = (Math.random() - 0.5) * speed;
+        break;
+      case 2: // bottom
+        x = Math.random() * CANVAS_WIDTH;
+        y = CANVAS_HEIGHT + 20;
+        dx = (Math.random() - 0.5) * speed;
+        dy = -speed * 0.7;
+        break;
+      default: // left
+        x = -20;
+        y = Math.random() * CANVAS_HEIGHT;
+        dx = speed * 0.7;
+        dy = (Math.random() - 0.5) * speed;
+        break;
+    }
+
+    return {
+      id: `ufo-${this.ufoCounter++}`,
+      position: { x, y },
+      velocity: { x: dx, y: dy },
+      spawnTime: performance.now(),
+    };
   }
 
   private render(): void {
     this.radar.render(this.state.aircraft, this.state.selectedAircraftId, this.conflicts);
+    this.radar.renderUFOs(this.ufos);
   }
 
   private renderGameOver(): void {
